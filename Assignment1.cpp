@@ -91,6 +91,15 @@ namespace
       return true;
     }
   }; // StrengthReduction
+
+  struct MultiInstrOpt : PassInfoMixin<MultiInstrOpt>
+  {
+    PreservedAnalyses run(Function &F, FunctionAnalysisManager &)
+    {
+      return PreservedAnalyses::all();
+    }
+      
+  }; // MultiInstrOpt
 }
 
 llvm::PassPluginLibraryInfo assignment1PluginInfo()
@@ -113,7 +122,7 @@ llvm::PassPluginLibraryInfo assignment1PluginInfo()
                   }
                   else if(Name == "multinstr-opt")
                   {
-                    FPM.addPass(AlgebraicIdentity());
+                    FPM.addPass(MultiInstrOpt());
                   }
                   return false;
                 });
