@@ -8,6 +8,12 @@ using namespace llvm;
 
 namespace
 {
+  /**
+   * Algebraic Identity
+   * Casi gestiti
+   * X + 0 = 0 + X = X
+   * X * 1 = 1 * X = X
+   */ 
   struct AlgebraicIdentity : PassInfoMixin<AlgebraicIdentity>
   {
     PreservedAnalyses run(Function &F, FunctionAnalysisManager &)
@@ -20,22 +26,26 @@ namespace
         {
           auto BinOp = dyn_cast<BinaryOperator>(Inst);
 
-          if (BinOp && BinOp->getOpcode() == Instruction::Add)
+          if(BinOp)
           {
             auto firstOperand = dyn_cast<ConstantInt>(BinOp->getOperand(0));
             auto secondOperand = dyn_cast<ConstantInt>(BinOp->getOperand(1));
             int operandToTake = -1;
 
-            if (firstOperand && firstOperand->getValue() == 0)
+            if(firstOperand && 
+              ((BinOp->getOpcode() == Instruction::Add && firstOperand->getValue().isZero()) || 
+              (BinOp->getOpcode() == Instruction::Mul && firstOperand->getValue().isOne())))
             {
               operandToTake = 1;
             }
-            else if (secondOperand && secondOperand->getValue() == 0)
+            else if(secondOperand && 
+              ((BinOp->getOpcode() == Instruction::Add && secondOperand->getValue().isZero()) || 
+              (BinOp->getOpcode() == Instruction::Mul && secondOperand->getValue().isOne())))
             {
               operandToTake = 0;
             }
 
-            if (operandToTake != -1)
+            if(operandToTake != -1)
             {
               BinOp->replaceAllUsesWith(BinOp->getOperand(operandToTake));
               instToRemove.push_back(BinOp);

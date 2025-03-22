@@ -1,15 +1,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int main()
+void AlgebraicIdentitySumTest()
 {
-  int x = 20;
-  int y = x + 0;
-  int z = 0 + x;
-  int a = x + 30; /* Must not be removed */
-  printf("Result of x+0 is: %d\n", x+0);
-  printf("Result of 0+x is: %d\n", 0+x);
-  printf("Result of a is: %d\n", a);
-  printf("Result of x+19 is: %d\n", x+19);
-  return 0;
+   int startValue = 20;
+   int ident1 = startValue + 0;
+   int ident2 = 0 + startValue;
+   int ident3 = 0 + 15;
+   int ident4 = 15 + 0;
+   int testSum1 = startValue + 50; /* Non deve essere sostituita */
+   int testSum2 = 50 + startValue; /* Non deve essere sostituita */
+   printf("%d %d %d %d %d %d", ident1, ident2, ident3, ident4, testSum1, testSum2);
+}
+
+void AlgebraicIdentityTestMul()
+{
+   int startValue = 20;
+   int ident1 = startValue * 1;
+   int ident2 = 1 * startValue;
+   int ident3 = 1 * 12;
+   int ident4 = 12 * 1;
+   int testMul1 = startValue * 3; /* Non deve essere sostituita */ 
+   int testMul2 = 3 * startValue; /* Non deve essere sostituita */
+   printf("%d %d %d %d %d %d", ident1, ident2, ident3, ident4, testMul1, testMul2);
 }

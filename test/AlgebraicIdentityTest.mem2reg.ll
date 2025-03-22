@@ -1,29 +1,31 @@
-; ModuleID = 'AlgebraicIdentityTest.mem2reg.bc'
+; ModuleID = 'AlgebraicIdentityTest.ll'
 source_filename = "AlgebraicIdentityTest.c"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
-@.str = private unnamed_addr constant [22 x i8] c"Result of x+0 is: %d\0A\00", align 1
-@.str.1 = private unnamed_addr constant [22 x i8] c"Result of 0+x is: %d\0A\00", align 1
-@.str.2 = private unnamed_addr constant [20 x i8] c"Result of a is: %d\0A\00", align 1
-@.str.3 = private unnamed_addr constant [23 x i8] c"Result of x+19 is: %d\0A\00", align 1
+@.str = private unnamed_addr constant [18 x i8] c"%d %d %d %d %d %d\00", align 1
 
 ; Function Attrs: noinline nounwind uwtable
-define dso_local i32 @main() #0 {
+define dso_local void @AlgebraicIdentitySumTest() #0 {
   %1 = add nsw i32 20, 0
   %2 = add nsw i32 0, 20
-  %3 = add nsw i32 20, 30
-  %4 = add nsw i32 20, 0
-  %5 = call i32 (ptr, ...) @printf(ptr noundef @.str, i32 noundef %4)
-  %6 = add nsw i32 0, 20
-  %7 = call i32 (ptr, ...) @printf(ptr noundef @.str.1, i32 noundef %6)
-  %8 = call i32 (ptr, ...) @printf(ptr noundef @.str.2, i32 noundef %3)
-  %9 = add nsw i32 20, 19
-  %10 = call i32 (ptr, ...) @printf(ptr noundef @.str.3, i32 noundef %9)
-  ret i32 0
+  %3 = add nsw i32 20, 50
+  %4 = add nsw i32 50, 20
+  %5 = call i32 (ptr, ...) @printf(ptr noundef @.str, i32 noundef %1, i32 noundef %2, i32 noundef 15, i32 noundef 15, i32 noundef %3, i32 noundef %4)
+  ret void
 }
 
 declare i32 @printf(ptr noundef, ...) #1
+
+; Function Attrs: noinline nounwind uwtable
+define dso_local void @AlgebraicIdentityTestMul() #0 {
+  %1 = mul nsw i32 20, 1
+  %2 = mul nsw i32 1, 20
+  %3 = mul nsw i32 20, 3
+  %4 = mul nsw i32 3, 20
+  %5 = call i32 (ptr, ...) @printf(ptr noundef @.str, i32 noundef %1, i32 noundef %2, i32 noundef 12, i32 noundef 12, i32 noundef %3, i32 noundef %4)
+  ret void
+}
 
 attributes #0 = { noinline nounwind uwtable "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
 attributes #1 = { "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
