@@ -11,8 +11,8 @@ namespace
   /**
    * Algebraic Identity
    * Casi gestiti
-   * X + 0 = 0 + X = X
-   * X * 1 = 1 * X = X
+   * x + 0 = 0 + x = x
+   * x * 1 = 1 * x = x
    */ 
   struct AlgebraicIdentity : PassInfoMixin<AlgebraicIdentity>
   {
@@ -65,6 +65,14 @@ namespace
     }
   }; // AlgebraicIdentity
 
+  /**
+   * Strength reduction (avanzato)
+   * Casi gestiti
+   * Moltiplicazione per (2^x - 1): 15 * x = x * 15 = (x << 4) - x  
+   * Moltiplicazione per (2^x + 1): 17 * x = x * 17 = (x << 4) + x
+   * Moltiplicazione per 2^x      : 16 * x = x * 16 = x << 4
+   * Divisione per 2^x            : x / 8  = x >> 3
+   */
   struct StrengthReduction : PassInfoMixin<StrengthReduction>
   {
     PreservedAnalyses run(Function &F, FunctionAnalysisManager &)
@@ -77,17 +85,66 @@ namespace
         {
           auto BinOp = dyn_cast<BinaryOperator>(Inst);
 
-          if(!BinOp) 
-             break; // skip if it isn't a binary operator
-
-          if (BinOp->getOpcode() == Instruction::Mul)
+          if(BinOp)
           {
+            int constOpIndex = -1;
+            if(dyn_cast<ConstantInt>(BinOp->getOperand(0)))
+            {
+              constOpIndex = 0;
+            }
+            else if(dyn_cast<ConstantInt>(BinOp->getOperand(1)))
+            {
+              constOpIndex = 1;
+            }
+  
+            if(constOpIndex != -1)
+            {
+              auto constIntValue = dyn_cast<ConstantInt>(BinOp->getOperand(constOpIndex))->getValue();
+              auto varValue = BinOp->getOperand(constOpIndex == 0 ? 1 : 0);
+              IRBuilder<> builder(BinOp); // Nuova istruzione prima di BinOp
+              bool overflow = false;
 
-          }
-          else if(BinOp->getOpcode() == Instruction::SDiv || BinOp->getOpcode() == Instruction::UDiv)
-          {
-            /* Handle signed and unsigned integer division. Floating point division not handled. */
-          }
+              if (BinOp->getOpcode() == Instruction::Mul)
+              {
+                llvm::APInt one(constIntValue.getBitWidth(), 1);
+
+                if(constIntValue.isPowerOf2())
+                {
+                  auto shiftValue = builder.getInt32(constIntValue.logBase2());
+                  auto shiftInst = builder.CreateShl(BinOp->getOperand(constOpIndex == 0 ? 1 : 0), shiftValue);
+                  BinOp->replaceAllUsesWith(shiftInst);
+                  instToRemove.push_back(BinOp);
+                }
+                /* Gestione overflow: 0xFFFFFFFF + 1 su registri a 32 andrebbe in overflow */
+                else if(auto sumValue = constIntValue.uadd_ov(one, overflow); !overflow && sumValue.isPowerOf2())
+                {
+                  auto shiftValue = builder.getInt32(sumValue.logBase2());
+                  auto shiftInst = builder.CreateShl(varValue, shiftValue);
+                  auto subInst = builder.CreateSub(shiftInst, varValue);
+                  BinOp->replaceAllUsesWith(subInst);
+                  instToRemove.push_back(BinOp);
+                }
+                else if(auto subValue = constIntValue.usub_ov(one, overflow); !overflow && subValue.isPowerOf2())
+                {
+                  auto shiftValue = builder.getInt32(subValue.logBase2());
+                  auto rShiftInst = builder.CreateShl(varValue, shiftValue);
+                  auto addInst = builder.CreateAdd(rShiftInst, varValue);
+                  BinOp->replaceAllUsesWith(addInst);
+                  instToRemove.push_back(BinOp);
+                }
+              }
+              else if(BinOp->getOpcode() == Instruction::UDiv) /* Gestiamo solo divisione unsigned per evitare problemi con lo shift a destra di numeri con il segno */
+              {
+                if(auto secondConstIntOp = dyn_cast<ConstantInt>(BinOp->getOperand(1)); secondConstIntOp && secondConstIntOp->getValue().isPowerOf2())
+                {
+                  auto shiftValue = builder.getInt32(secondConstIntOp->getValue().logBase2());
+                  auto rShiftInst = builder.CreateLShr(BinOp->getOperand(0), shiftValue);
+                  BinOp->replaceAllUsesWith(rShiftInst);
+                  instToRemove.push_back(BinOp);
+                }
+              }
+            }
+          } 
         }
       }
       for (auto inst : instToRemove)
@@ -129,10 +186,12 @@ llvm::PassPluginLibraryInfo assignment1PluginInfo()
                   else if(Name == "strength-reduction")
                   {
                     FPM.addPass(StrengthReduction());
+                    return true;
                   }
                   else if(Name == "multinstr-opt")
                   {
                     FPM.addPass(MultiInstrOpt());
+                    return true;
                   }
                   return false;
                 });
