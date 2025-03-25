@@ -17,10 +17,13 @@ Dalla cartella di test eseguire i seguenti comandi:
 **Algebraic identity**
 ```
 clang-19 -O0 -S -emit-llvm -Xclang -disable-O0-optnone AlgebraicIdentityTest.c -o AlgebraicIdentityTest.ll
-
 opt-19 -S -p mem2reg AlgebraicIdentityTest.ll -o AlgebraicIdentityTest.mem2reg.ll
-
 opt-19 -S -load-pass-plugin ../build/libAssignment1.so -p algebraic-identity AlgebraicIdentityTest.mem2reg.ll -o AlgebraicIdentityTest.mem2reg.optimized.ll
 ```
 
-
+**Strength reduction**
+```
+clang-19 -O0 -S -emit-llvm -Xclang -disable-O0-optnone StrengthReductionTest.c -o StrengthReductionTest.ll
+opt-19 -S -p mem2reg StrengthReductionTest.ll -o StrengthReductionTest.mem2reg.ll
+opt-19 -S -load-pass-plugin ../build/libAssignment1.so -p strength-reduction StrengthReductionTest.mem2reg.ll -o StrengthReductionTest.mem2reg.optimized.ll
+```
