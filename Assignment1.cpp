@@ -13,7 +13,7 @@ namespace
    * Casi gestiti
    * x + 0 = 0 + x = x
    * x * 1 = 1 * x = x
-   */ 
+   */
   struct AlgebraicIdentity : PassInfoMixin<AlgebraicIdentity>
   {
     PreservedAnalyses run(Function &F, FunctionAnalysisManager &)
@@ -26,26 +26,26 @@ namespace
         {
           auto BinOp = dyn_cast<BinaryOperator>(Inst);
 
-          if(BinOp)
+          if (BinOp)
           {
             auto firstOperand = dyn_cast<ConstantInt>(BinOp->getOperand(0));
             auto secondOperand = dyn_cast<ConstantInt>(BinOp->getOperand(1));
             int operandToTake = -1;
 
-            if(firstOperand && 
-              ((BinOp->getOpcode() == Instruction::Add && firstOperand->getValue().isZero()) || 
-              (BinOp->getOpcode() == Instruction::Mul && firstOperand->getValue().isOne())))
+            if (firstOperand &&
+                ((BinOp->getOpcode() == Instruction::Add && firstOperand->getValue().isZero()) ||
+                 (BinOp->getOpcode() == Instruction::Mul && firstOperand->getValue().isOne())))
             {
               operandToTake = 1;
             }
-            else if(secondOperand && 
-              ((BinOp->getOpcode() == Instruction::Add && secondOperand->getValue().isZero()) || 
-              (BinOp->getOpcode() == Instruction::Mul && secondOperand->getValue().isOne())))
+            else if (secondOperand &&
+                     ((BinOp->getOpcode() == Instruction::Add && secondOperand->getValue().isZero()) ||
+                      (BinOp->getOpcode() == Instruction::Mul && secondOperand->getValue().isOne())))
             {
               operandToTake = 0;
             }
 
-            if(operandToTake != -1)
+            if (operandToTake != -1)
             {
               BinOp->replaceAllUsesWith(BinOp->getOperand(operandToTake));
               instToRemove.push_back(BinOp);
@@ -68,7 +68,7 @@ namespace
   /**
    * Strength reduction (avanzato)
    * Casi gestiti
-   * Moltiplicazione per (2^x - 1): 15 * x = x * 15 = (x << 4) - x  
+   * Moltiplicazione per (2^x - 1): 15 * x = x * 15 = (x << 4) - x
    * Moltiplicazione per (2^x + 1): 17 * x = x * 17 = (x << 4) + x
    * Moltiplicazione per 2^x      : 16 * x = x * 16 = x << 4
    * Divisione per 2^x            : x / 8  = x >> 3
@@ -85,19 +85,19 @@ namespace
         {
           auto BinOp = dyn_cast<BinaryOperator>(Inst);
 
-          if(BinOp)
+          if (BinOp)
           {
             int constOpIndex = -1;
-            if(dyn_cast<ConstantInt>(BinOp->getOperand(0)))
+            if (dyn_cast<ConstantInt>(BinOp->getOperand(0)))
             {
               constOpIndex = 0;
             }
-            else if(dyn_cast<ConstantInt>(BinOp->getOperand(1)))
+            else if (dyn_cast<ConstantInt>(BinOp->getOperand(1)))
             {
               constOpIndex = 1;
             }
-  
-            if(constOpIndex != -1)
+
+            if (constOpIndex != -1)
             {
               auto constIntValue = dyn_cast<ConstantInt>(BinOp->getOperand(constOpIndex))->getValue();
               auto varValue = BinOp->getOperand(constOpIndex == 0 ? 1 : 0);
@@ -108,7 +108,7 @@ namespace
               {
                 llvm::APInt one(constIntValue.getBitWidth(), 1);
 
-                if(constIntValue.isPowerOf2())
+                if (constIntValue.isPowerOf2())
                 {
                   auto shiftValue = builder.getInt32(constIntValue.logBase2());
                   auto shiftInst = builder.CreateShl(BinOp->getOperand(constOpIndex == 0 ? 1 : 0), shiftValue);
@@ -116,7 +116,7 @@ namespace
                   instToRemove.push_back(BinOp);
                 }
                 /* Gestione overflow: 0xFFFFFFFF + 1 su registri a 32 andrebbe in overflow */
-                else if(auto sumValue = constIntValue.uadd_ov(one, overflow); !overflow && sumValue.isPowerOf2())
+                else if (auto sumValue = constIntValue.uadd_ov(one, overflow); !overflow && sumValue.isPowerOf2())
                 {
                   auto shiftValue = builder.getInt32(sumValue.logBase2());
                   auto shiftInst = builder.CreateShl(varValue, shiftValue);
@@ -124,7 +124,7 @@ namespace
                   BinOp->replaceAllUsesWith(subInst);
                   instToRemove.push_back(BinOp);
                 }
-                else if(auto subValue = constIntValue.usub_ov(one, overflow); !overflow && subValue.isPowerOf2())
+                else if (auto subValue = constIntValue.usub_ov(one, overflow); !overflow && subValue.isPowerOf2())
                 {
                   auto shiftValue = builder.getInt32(subValue.logBase2());
                   auto rShiftInst = builder.CreateShl(varValue, shiftValue);
@@ -133,9 +133,9 @@ namespace
                   instToRemove.push_back(BinOp);
                 }
               }
-              else if(BinOp->getOpcode() == Instruction::UDiv) /* Gestiamo solo divisione unsigned per evitare problemi con lo shift a destra di numeri con il segno */
+              else if (BinOp->getOpcode() == Instruction::UDiv) /* Gestiamo solo divisione unsigned per evitare problemi con lo shift a destra di numeri con il segno */
               {
-                if(auto secondConstIntOp = dyn_cast<ConstantInt>(BinOp->getOperand(1)); secondConstIntOp && secondConstIntOp->getValue().isPowerOf2())
+                if (auto secondConstIntOp = dyn_cast<ConstantInt>(BinOp->getOperand(1)); secondConstIntOp && secondConstIntOp->getValue().isPowerOf2())
                 {
                   auto shiftValue = builder.getInt32(secondConstIntOp->getValue().logBase2());
                   auto rShiftInst = builder.CreateLShr(BinOp->getOperand(0), shiftValue);
@@ -144,7 +144,7 @@ namespace
                 }
               }
             }
-          } 
+          }
         }
       }
       for (auto inst : instToRemove)
@@ -163,9 +163,76 @@ namespace
   {
     PreservedAnalyses run(Function &F, FunctionAnalysisManager &)
     {
+      std::vector<Instruction *> instToRemove;
+
+      for (auto BB = F.begin(); BB != F.end(); ++BB)
+      {
+        for (auto Inst = BB->begin(); Inst != BB->end(); ++Inst)
+        {
+          auto BinOp = dyn_cast<BinaryOperator>(Inst);
+
+          if (BinOp)
+          {
+            if (BinOp->getOpcode() == Instruction::Add)
+            {
+              int constOpIndex = -1;
+              if (dyn_cast<ConstantInt>(BinOp->getOperand(0)))
+              {
+                constOpIndex = 0;
+              }
+              else if (dyn_cast<ConstantInt>(BinOp->getOperand(1)))
+              {
+                constOpIndex = 1;
+              }
+
+              if (constOpIndex != -1)
+              {
+                for (auto Iter = Inst->user_begin(); Iter != Inst->user_end(); ++Iter)
+                {
+                  User *InstUser = *Iter;
+
+                  if (auto SubOp = dyn_cast<BinaryOperator>(*Iter))
+                  {
+                    if (SubOp->getOpcode() == Instruction::Sub)
+                    {
+                      int SubConstOpIndex = -1;
+                      if (dyn_cast<ConstantInt>(SubOp->getOperand(0)))
+                      {
+                        SubConstOpIndex = 0;
+                      }
+                      else if (dyn_cast<ConstantInt>(SubOp->getOperand(1)))
+                      {
+                        SubConstOpIndex = 1;
+                      }
+
+                      if (SubConstOpIndex != -1)
+                      {
+                        auto constIntAddValue = dyn_cast<ConstantInt>(BinOp->getOperand(constOpIndex))->getValue();
+                        auto constIntSubValue = dyn_cast<ConstantInt>(SubOp->getOperand(SubConstOpIndex))->getValue();
+
+                        if (constIntAddValue == constIntSubValue)
+                        {
+                          SubOp->replaceAllUsesWith(BinOp->getOperand(!constOpIndex));
+                          instToRemove.push_back(SubOp);
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      for (auto inst : instToRemove)
+      {
+        inst->eraseFromParent();
+      }
+
       return PreservedAnalyses::all();
     }
-      
+
   }; // MultiInstrOpt
 }
 
@@ -183,12 +250,12 @@ llvm::PassPluginLibraryInfo assignment1PluginInfo()
                     FPM.addPass(AlgebraicIdentity());
                     return true;
                   }
-                  else if(Name == "strength-reduction")
+                  else if (Name == "strength-reduction")
                   {
                     FPM.addPass(StrengthReduction());
                     return true;
                   }
-                  else if(Name == "multinstr-opt")
+                  else if (Name == "multinstr-opt")
                   {
                     FPM.addPass(MultiInstrOpt());
                     return true;
@@ -196,7 +263,6 @@ llvm::PassPluginLibraryInfo assignment1PluginInfo()
                   return false;
                 });
           }};
-
 }
 
 // This is the core interface for pass plugins. It guarantees that 'opt' will
