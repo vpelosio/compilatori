@@ -155,7 +155,7 @@ define dso_local void @testMulPowerOfTwoPlusOne() #0 {
 }
 
 ; Function Attrs: noinline nounwind uwtable
-define dso_local void @testSignedDivisionPowerOfTwo() #0 {
+define dso_local void @testUnsignedDivisionPowerOfTwo() #0 {
   %1 = alloca i32, align 4
   %2 = alloca i32, align 4
   %3 = alloca i32, align 4
@@ -188,16 +188,6 @@ define dso_local void @testSignedDivisionPowerOfTwo() #0 {
   %24 = load i32, ptr %8, align 4
   %25 = call i32 (ptr, ...) @printf(ptr noundef @.str.1, i32 noundef %20, i32 noundef %21, i32 noundef %22, i32 noundef %23, i32 noundef %24)
   ret void
-}
-
-; Function Attrs: noinline nounwind uwtable
-define dso_local i32 @main() #0 {
-  call void @testMulPowerOf2()
-  call void @testMulNotPowerOf2()
-  call void @testMulPowerOfTwoMinusOne()
-  call void @testMulPowerOfTwoPlusOne()
-  call void @testSignedDivisionPowerOfTwo()
-  ret i32 0
 }
 
 attributes #0 = { noinline nounwind uwtable "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
