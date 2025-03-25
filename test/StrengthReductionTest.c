@@ -56,7 +56,7 @@ void testMulPowerOfTwoPlusOne()
     printf("%d %d %d %d %d\n", prod1, prod2, prod3, prod4, prod5);  
 }
 
-void testSignedDivisionPowerOfTwo()
+void testUnsignedDivisionPowerOfTwo()
 {
     unsigned int val1, val2;
     scanf("%d %d", &val1, &val2);
@@ -68,13 +68,4 @@ void testSignedDivisionPowerOfTwo()
     unsigned int div4 = val1/powOfTwo;   /* variabile(lhs) / variabile(rhs)*/
     unsigned int div5 = val1/val2;       /* variabile(lhs) / variabile(rhs), entrambe sconosciute a compile-time*/
     printf("%d %d %d %d %d\n", div1, div2, div3, div4, div5);  
-}
-
-int main()
-{
-    testMulPowerOf2();
-    testMulNotPowerOf2();
-    testMulPowerOfTwoMinusOne();
-    testMulPowerOfTwoPlusOne();
-    testSignedDivisionPowerOfTwo();
 }
