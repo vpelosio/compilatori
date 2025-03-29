@@ -23,8 +23,20 @@ void testSubMultInstOpt()
     int b;
     scanf("%d", &b);
 
-    int a = b + 1;
-    int c = a - 1;
+    int a = b - 1;
+    int c = a + 1;
+    int d = c + 7 * 20;
+
+    printf("%d", c);
+}
+
+void testMulMultInstOpt()
+{
+    int b;
+    scanf("%d", &b);
+
+    int a = b * 2;
+    int c = a / 2;
     int d = c + 7 * 20;
 
     printf("%d", c);

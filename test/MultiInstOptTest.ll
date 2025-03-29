@@ -62,10 +62,31 @@ define void @testSubMultInstOpt() #0 {
   %4 = alloca i32, align 4
   %5 = call i32 (ptr, ...) @scanf(ptr noundef @.str, ptr noundef %1)
   %6 = load i32, ptr %1, align 4
-  %7 = add nsw i32 %6, 1
+  %7 = sub nsw i32 %6, 1
   store i32 %7, ptr %2, align 4
   %8 = load i32, ptr %2, align 4
-  %9 = sub nsw i32 %8, 1
+  %9 = add nsw i32 %8, 1
+  store i32 %9, ptr %3, align 4
+  %10 = load i32, ptr %3, align 4
+  %11 = add nsw i32 %10, 140
+  store i32 %11, ptr %4, align 4
+  %12 = load i32, ptr %3, align 4
+  %13 = call i32 (ptr, ...) @printf(ptr noundef @.str, i32 noundef %12)
+  ret void
+}
+
+; Function Attrs: noinline nounwind ssp uwtable(sync)
+define void @testMulMultInstOpt() #0 {
+  %1 = alloca i32, align 4
+  %2 = alloca i32, align 4
+  %3 = alloca i32, align 4
+  %4 = alloca i32, align 4
+  %5 = call i32 (ptr, ...) @scanf(ptr noundef @.str, ptr noundef %1)
+  %6 = load i32, ptr %1, align 4
+  %7 = mul nsw i32 %6, 2
+  store i32 %7, ptr %2, align 4
+  %8 = load i32, ptr %2, align 4
+  %9 = sdiv i32 %8, 2
   store i32 %9, ptr %3, align 4
   %10 = load i32, ptr %3, align 4
   %11 = add nsw i32 %10, 140

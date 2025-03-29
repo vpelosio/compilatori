@@ -173,9 +173,7 @@ namespace
 
           if (BinOp)
           {
-            if (BinOp->getOpcode() == Instruction::Add)
-            {
-              int constOpIndex = -1;
+            int constOpIndex = -1;
               if (dyn_cast<ConstantInt>(BinOp->getOperand(0)))
               {
                 constOpIndex = 0;
@@ -193,7 +191,7 @@ namespace
 
                   if (auto SubOp = dyn_cast<BinaryOperator>(*Iter))
                   {
-                    if (SubOp->getOpcode() == Instruction::Sub)
+                    if ((BinOp->getOpcode() == Instruction::Add && SubOp->getOpcode() == Instruction::Sub) || (BinOp->getOpcode() == Instruction::Sub && SubOp->getOpcode() == Instruction::Add))
                     {
                       int SubConstOpIndex = -1;
                       if (dyn_cast<ConstantInt>(SubOp->getOperand(0)))
@@ -217,10 +215,20 @@ namespace
                         }
                       }
                     }
+                    else if ((BinOp->getOpcode() == Instruction::Mul && (SubOp->getOpcode() == Instruction::UDiv || SubOp->getOpcode() == Instruction::SDiv)) && dyn_cast<ConstantInt>(SubOp->getOperand(1)))
+                    {
+                      auto constIntMulValue = dyn_cast<ConstantInt>(BinOp->getOperand(constOpIndex))->getValue();
+                      auto constIntDivValue = dyn_cast<ConstantInt>(SubOp->getOperand(1))->getValue();
+
+                      if (constIntMulValue == constIntDivValue)
+                      {
+                        SubOp->replaceAllUsesWith(BinOp->getOperand(!constOpIndex));
+                        instToRemove.push_back(SubOp);
+                      }
+                    }
                   }
                 }
               }
-            }
           }
         }
       }

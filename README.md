@@ -27,3 +27,10 @@ clang-19 -O0 -S -emit-llvm -Xclang -disable-O0-optnone StrengthReductionTest.c -
 opt-19 -S -p mem2reg StrengthReductionTest.ll -o StrengthReductionTest.mem2reg.ll
 opt-19 -S -load-pass-plugin ../build/libAssignment1.so -p strength-reduction StrengthReductionTest.mem2reg.ll -o StrengthReductionTest.mem2reg.optimized.ll
 ```
+
+**Multi-Instruction Optimization**
+```
+clang-19 -O0 -S -emit-llvm -Xclang -disable-O0-optnone MultiInstOptTest.c -o MultiInstOptTest.ll
+opt-19 -S -p mem2reg MultiInstOptTest.ll -o MultiInstOptTest.mem2reg.ll
+opt-19 -S -load-pass-plugin ../build/libAssignment1.so -p strength-reduction MultiInstOptTest.mem2reg.ll -o MultiInstOptTest.mem2reg.optimized.ll
+```

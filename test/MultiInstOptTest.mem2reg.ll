@@ -33,8 +33,20 @@ define void @testSubMultInstOpt() #0 {
   %1 = alloca i32, align 4
   %2 = call i32 (ptr, ...) @scanf(ptr noundef @.str, ptr noundef %1)
   %3 = load i32, ptr %1, align 4
-  %4 = add nsw i32 %3, 1
-  %5 = sub nsw i32 %4, 1
+  %4 = sub nsw i32 %3, 1
+  %5 = add nsw i32 %4, 1
+  %6 = add nsw i32 %5, 140
+  %7 = call i32 (ptr, ...) @printf(ptr noundef @.str, i32 noundef %5)
+  ret void
+}
+
+; Function Attrs: noinline nounwind ssp uwtable(sync)
+define void @testMulMultInstOpt() #0 {
+  %1 = alloca i32, align 4
+  %2 = call i32 (ptr, ...) @scanf(ptr noundef @.str, ptr noundef %1)
+  %3 = load i32, ptr %1, align 4
+  %4 = mul nsw i32 %3, 2
+  %5 = sdiv i32 %4, 2
   %6 = add nsw i32 %5, 140
   %7 = call i32 (ptr, ...) @printf(ptr noundef @.str, i32 noundef %5)
   ret void
