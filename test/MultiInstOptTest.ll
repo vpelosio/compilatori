@@ -81,18 +81,26 @@ define void @testMulMultInstOpt() #0 {
   %2 = alloca i32, align 4
   %3 = alloca i32, align 4
   %4 = alloca i32, align 4
-  %5 = call i32 (ptr, ...) @scanf(ptr noundef @.str, ptr noundef %1)
-  %6 = load i32, ptr %1, align 4
-  %7 = mul nsw i32 %6, 2
-  store i32 %7, ptr %2, align 4
-  %8 = load i32, ptr %2, align 4
-  %9 = sdiv i32 %8, 2
-  store i32 %9, ptr %3, align 4
-  %10 = load i32, ptr %3, align 4
-  %11 = add nsw i32 %10, 140
-  store i32 %11, ptr %4, align 4
+  %5 = alloca i32, align 4
+  %6 = alloca i32, align 4
+  %7 = call i32 (ptr, ...) @scanf(ptr noundef @.str, ptr noundef %1)
+  %8 = load i32, ptr %1, align 4
+  %9 = mul nsw i32 %8, 2
+  store i32 %9, ptr %2, align 4
+  %10 = load i32, ptr %2, align 4
+  %11 = sdiv i32 %10, 2
+  store i32 %11, ptr %3, align 4
   %12 = load i32, ptr %3, align 4
-  %13 = call i32 (ptr, ...) @printf(ptr noundef @.str, i32 noundef %12)
+  %13 = add nsw i32 %12, 140
+  store i32 %13, ptr %4, align 4
+  %14 = load i32, ptr %1, align 4
+  %15 = mul nsw i32 5, %14
+  store i32 %15, ptr %5, align 4
+  %16 = load i32, ptr %1, align 4
+  %17 = sdiv i32 5, %16
+  store i32 %17, ptr %6, align 4
+  %18 = load i32, ptr %3, align 4
+  %19 = call i32 (ptr, ...) @printf(ptr noundef @.str, i32 noundef %18)
   ret void
 }
 

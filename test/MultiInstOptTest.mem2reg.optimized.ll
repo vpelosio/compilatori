@@ -44,7 +44,11 @@ define void @testMulMultInstOpt() #0 {
   %3 = load i32, ptr %1, align 4
   %4 = mul nsw i32 %3, 2
   %5 = add nsw i32 %3, 140
-  %6 = call i32 (ptr, ...) @printf(ptr noundef @.str, i32 noundef %3)
+  %6 = load i32, ptr %1, align 4
+  %7 = mul nsw i32 5, %6
+  %8 = load i32, ptr %1, align 4
+  %9 = sdiv i32 5, %8
+  %10 = call i32 (ptr, ...) @printf(ptr noundef @.str, i32 noundef %3)
   ret void
 }
 

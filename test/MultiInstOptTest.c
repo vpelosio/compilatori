@@ -38,6 +38,8 @@ void testMulMultInstOpt()
     int a = b * 2;
     int c = a / 2;
     int d = c + 7 * 20;
+    int e = 5 * b;
+    int f = 5 / b;
 
     printf("%d", c);
 }
