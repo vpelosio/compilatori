@@ -189,41 +189,41 @@ namespace
               {
                 User *InstUser = *Iter;
 
-                if (auto RedundantOp = dyn_cast<BinaryOperator>(*Iter))
+                if (auto SecondOp = dyn_cast<BinaryOperator>(*Iter))
                 {
-                  if ((BinOp->getOpcode() == Instruction::Add && RedundantOp->getOpcode() == Instruction::Sub) || (BinOp->getOpcode() == Instruction::Sub && RedundantOp->getOpcode() == Instruction::Add))
+                  if ((BinOp->getOpcode() == Instruction::Add && SecondOp->getOpcode() == Instruction::Sub) || (BinOp->getOpcode() == Instruction::Sub && SecondOp->getOpcode() == Instruction::Add))
                   {
-                    int RedundantConstOpIndex = -1;
-                    if (dyn_cast<ConstantInt>(RedundantOp->getOperand(0)))
+                    int SecondConstOpIndex = -1;
+                    if (dyn_cast<ConstantInt>(SecondOp->getOperand(0)))
                     {
-                      RedundantConstOpIndex = 0;
+                      SecondConstOpIndex = 0;
                     }
-                    else if (dyn_cast<ConstantInt>(RedundantOp->getOperand(1)))
+                    else if (dyn_cast<ConstantInt>(SecondOp->getOperand(1)))
                     {
-                      RedundantConstOpIndex = 1;
+                      SecondConstOpIndex = 1;
                     }
 
-                    if (RedundantConstOpIndex != -1)
+                    if (SecondConstOpIndex != -1)
                     {
-                      auto constIntAddValue = dyn_cast<ConstantInt>(BinOp->getOperand(constOpIndex))->getValue();
-                      auto constIntSubValue = dyn_cast<ConstantInt>(RedundantOp->getOperand(RedundantConstOpIndex))->getValue();
+                      auto constIntFirstOp = dyn_cast<ConstantInt>(BinOp->getOperand(constOpIndex))->getValue();
+                      auto constIntSecondOp = dyn_cast<ConstantInt>(SecondOp->getOperand(SecondConstOpIndex))->getValue();
 
-                      if (constIntAddValue == constIntSubValue)
+                      if (constIntFirstOp == constIntSecondOp)
                       {
-                        RedundantOp->replaceAllUsesWith(BinOp->getOperand(!constOpIndex));
-                        instToRemove.push_back(RedundantOp);
+                        SecondOp->replaceAllUsesWith(BinOp->getOperand(!constOpIndex));
+                        instToRemove.push_back(SecondOp);
                       }
                     }
                   }
-                  else if ((BinOp->getOpcode() == Instruction::Mul && (RedundantOp->getOpcode() == Instruction::UDiv || RedundantOp->getOpcode() == Instruction::SDiv)) && dyn_cast<ConstantInt>(RedundantOp->getOperand(1)))
+                  else if ((BinOp->getOpcode() == Instruction::Mul && SecondOp->getOpcode() == Instruction::UDiv) && dyn_cast<ConstantInt>(SecondOp->getOperand(1)))
                   {
                     auto constIntMulValue = dyn_cast<ConstantInt>(BinOp->getOperand(constOpIndex))->getValue();
-                    auto constIntDivValue = dyn_cast<ConstantInt>(RedundantOp->getOperand(1))->getValue();
+                    auto constIntDivValue = dyn_cast<ConstantInt>(SecondOp->getOperand(1))->getValue();
 
                     if (constIntMulValue == constIntDivValue)
                     {
-                      RedundantOp->replaceAllUsesWith(BinOp->getOperand(!constOpIndex));
-                      instToRemove.push_back(RedundantOp);
+                      SecondOp->replaceAllUsesWith(BinOp->getOperand(!constOpIndex));
+                      instToRemove.push_back(SecondOp);
                     }
                   }
                 }

@@ -4,13 +4,14 @@ target datalayout = "e-m:o-i64:64-i128:128-n32:64-S128-Fn32"
 target triple = "arm64-apple-macosx15.0.0"
 
 @.str = private unnamed_addr constant [3 x i8] c"%d\00", align 1
+@.str.1 = private unnamed_addr constant [3 x i8] c"%u\00", align 1
 
 ; Function Attrs: noinline nounwind ssp uwtable(sync)
 define void @testAddMultInstOpt() #0 {
   %1 = alloca i32, align 4
   %2 = call i32 (ptr, ...) @scanf(ptr noundef @.str, ptr noundef %1)
   %3 = load i32, ptr %1, align 4
-  %4 = add nsw i32 %3, 1
+  %4 = add nsw i32 1, %3
   %5 = add nsw i32 %4, 2
   %6 = sub nsw i32 %5, 9
   %7 = add nsw i32 %3, 140
@@ -40,14 +41,14 @@ define void @testSubMultInstOpt() #0 {
 ; Function Attrs: noinline nounwind ssp uwtable(sync)
 define void @testMulMultInstOpt() #0 {
   %1 = alloca i32, align 4
-  %2 = call i32 (ptr, ...) @scanf(ptr noundef @.str, ptr noundef %1)
+  %2 = call i32 (ptr, ...) @scanf(ptr noundef @.str.1, ptr noundef %1)
   %3 = load i32, ptr %1, align 4
-  %4 = mul nsw i32 %3, 2
+  %4 = mul i32 %3, 2
   %5 = add nsw i32 %3, 140
   %6 = load i32, ptr %1, align 4
-  %7 = mul nsw i32 5, %6
+  %7 = mul i32 5, %6
   %8 = load i32, ptr %1, align 4
-  %9 = sdiv i32 5, %8
+  %9 = udiv i32 5, %8
   %10 = call i32 (ptr, ...) @printf(ptr noundef @.str, i32 noundef %3)
   ret void
 }

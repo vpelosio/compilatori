@@ -5,7 +5,7 @@ void testAddMultInstOpt()
     int b;
     scanf("%d", &b);
 
-    int a = b + 1;
+    int a = 1 + b;
     int g = a + 2;
     int h = g - 9;
     int c = a - 1;
@@ -24,7 +24,7 @@ void testSubMultInstOpt()
     scanf("%d", &b);
 
     int a = b - 1;
-    int c = a + 1;
+    int c = 1 + a;
     int d = c + 7 * 20;
 
     printf("%d", c);
@@ -32,14 +32,14 @@ void testSubMultInstOpt()
 
 void testMulMultInstOpt()
 {
-    int b;
-    scanf("%d", &b);
+    unsigned int b;
+    scanf("%u", &b);
 
-    int a = b * 2;
-    int c = a / 2;
+    unsigned int a = b * 2;
+    int c = a / 2U;
     int d = c + 7 * 20;
     int e = 5 * b;
-    int f = 5 / b;
+    int f = 5U / b;
 
     printf("%d", c);
 }
