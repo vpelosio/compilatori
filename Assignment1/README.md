@@ -1,5 +1,5 @@
 ## Istruzioni per la build
-Dalla root del progetto usare i seguenti comandi  (assumendo che llvm sia installato in /usr/bin/):
+Dalla cartella corrente usare i seguenti comandi  (assumendo che llvm sia installato in /usr/bin/):
 
 ```
 export LLVM_DIR=/usr/bin/
