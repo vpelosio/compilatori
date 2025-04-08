@@ -1,6 +1,3 @@
-# Assignments corso compilatori
-Repository per assignments della seconda parte del corso di compilatori
-
 ## Istruzioni per la build
 Dalla root del progetto usare i seguenti comandi  (assumendo che llvm sia installato in /usr/bin/):
 
