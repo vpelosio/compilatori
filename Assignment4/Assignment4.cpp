@@ -17,16 +17,15 @@ namespace
     {
       auto &li = fam.getResult<LoopAnalysis>(f);
       auto &dt = fam.getResult<DominatorTreeAnalysis>(f);
+      auto &pdt = fam.getResult<PostDominatorTreeAnalysis>(f);
       std::vector<llvm::Loop*> loopsVec;
       
       if(!li.empty()) // At least one loop exists
       {
         for(auto *loop: li)
         {
-          if(loop->isLoopSimplifyForm()) // The loop is in normal form
-          {
-            loopsVec.push_back(loop);
-          }
+          /* Normal form not checked otherwise I cannot test areControlFlowEquivalent */
+          loopsVec.push_back(loop);
         }
       }
       if(loopsVec.size()%2 != 0) 
@@ -44,7 +43,7 @@ namespace
         outs() << *loopsVec[i+1];
         bool res = areLoopsAdjacent(loopsVec[i], loopsVec[i+1]);
         outs() << "\nADJACENT: " << res << "\n\n";
-        outs() << "CONTROLFLOWEQ: " << areControlFlowEquivalent(loopsVec[i], loopsVec[i+1]);
+        outs() << "CONTROLFLOWEQ: " << areControlFlowEquivalent(loopsVec[i], loopsVec[i+1], dt, pdt);
       }
       return PreservedAnalyses::all();
     }
