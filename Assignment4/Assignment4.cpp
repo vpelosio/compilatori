@@ -6,6 +6,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/Analysis/PostDominators.h"
+#include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Analysis/DependenceAnalysis.h"
 
 using namespace llvm;
 
@@ -18,6 +20,8 @@ namespace
       auto &li = fam.getResult<LoopAnalysis>(f);
       auto &dt = fam.getResult<DominatorTreeAnalysis>(f);
       auto &pdt = fam.getResult<PostDominatorTreeAnalysis>(f);
+      auto &se = fam.getResult<ScalarEvolutionAnalysis>(f);
+      auto &di = fam.getResult<DependenceAnalysis>(f);
       std::vector<llvm::Loop*> loopsVec;
       
       if(!li.empty()) // At least one loop exists
@@ -30,9 +34,9 @@ namespace
       }
       if(loopsVec.size()%2 != 0) 
       {
-        errs() << "Error, loops are not multiple of 2\n";
+        errs() << "\nError, loops are not multiple of 2\n";
       }
-      outs() << "In function " << f.getName();
+      outs() << "\nIn function " << f.getName() << "\n";
       
       reverse(loopsVec.begin(), loopsVec.end());
       for(int i=0;i<loopsVec.size();i+=2)
@@ -44,8 +48,37 @@ namespace
         bool res = areLoopsAdjacent(loopsVec[i], loopsVec[i+1]);
         outs() << "\nADJACENT: " << res << "\n\n";
         outs() << "CONTROLFLOWEQ: " << areControlFlowEquivalent(loopsVec[i], loopsVec[i+1], dt, pdt);
+        bool tripCount = tripCountEquivalent(se, loopsVec[i], loopsVec[i+1]);
+        outs() << "\n TRIPCOUNTEQUIVALENT: " << tripCount << "\n";
       }
       return PreservedAnalyses::all();
+    }
+
+    bool tripCountEquivalent(llvm::ScalarEvolution &se, llvm::Loop *l1, llvm::Loop *l2)
+    {//outs() << "\n\n\n";
+      auto tripCountl1 = se.getBackedgeTakenCount(l1);
+      auto tripCountl2 = se.getBackedgeTakenCount(l2);
+
+      if (tripCountl1 == nullptr || tripCountl2 == nullptr)
+      {
+        return false;
+      }
+      if (tripCountl1->getSCEVType()==scCouldNotCompute || tripCountl2->getSCEVType()==scCouldNotCompute)
+      {
+        return false;
+      }
+      auto value = se.computeConstantDifference(tripCountl1, tripCountl2);
+      if (value.has_value() && value.value().isZero())
+      {
+        return true;
+      }
+
+      return false;
+      
+      se.getBackedgeTakenCount(l1)->print(outs());
+      outs() << "\n";
+      se.getBackedgeTakenCount(l2)->print(outs());
+      //return se.getBackedgeTakenCount(l1) == se.getBackedgeTakenCount(l2);
     }
 
     llvm::BasicBlock* getLoopEntryBB(llvm::Loop* l)
