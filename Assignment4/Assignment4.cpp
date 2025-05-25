@@ -21,7 +21,7 @@ namespace
       auto &dt = fam.getResult<DominatorTreeAnalysis>(f);
       auto &pdt = fam.getResult<PostDominatorTreeAnalysis>(f);
       auto &se = fam.getResult<ScalarEvolutionAnalysis>(f);
-      auto &di = fam.getResult<DependenceAnalysis>(f);
+      auto &da = fam.getResult<DependenceAnalysis>(f);
       std::vector<llvm::Loop*> loopsVec;
       
       if(!li.empty()) // At least one loop exists
@@ -41,44 +41,36 @@ namespace
       reverse(loopsVec.begin(), loopsVec.end());
       for(int i=0;i<loopsVec.size();i+=2)
       {
-        outs() << "CHECKING\n";
+        outs() << "\n\nCHECKING\n";
         outs() << *loopsVec[i];
         outs() << "AND\n";
         outs() << *loopsVec[i+1];
         bool res = areLoopsAdjacent(loopsVec[i], loopsVec[i+1]);
         outs() << "\nADJACENT: " << res << "\n\n";
-        outs() << "CONTROLFLOWEQ: " << areControlFlowEquivalent(loopsVec[i], loopsVec[i+1], dt, pdt);
+        outs() << "\nCONTROLFLOWEQ: " << areControlFlowEquivalent(loopsVec[i], loopsVec[i+1], dt, pdt);
         bool tripCount = tripCountEquivalent(se, loopsVec[i], loopsVec[i+1]);
-        outs() << "\n TRIPCOUNTEQUIVALENT: " << tripCount << "\n";
+        outs() << "\nTRIPCOUNTEQUIVALENT: " << tripCount << "\n";
       }
       return PreservedAnalyses::all();
     }
 
     bool tripCountEquivalent(llvm::ScalarEvolution &se, llvm::Loop *l1, llvm::Loop *l2)
-    {//outs() << "\n\n\n";
+    {
       auto tripCountl1 = se.getBackedgeTakenCount(l1);
       auto tripCountl2 = se.getBackedgeTakenCount(l2);
 
-      if (tripCountl1 == nullptr || tripCountl2 == nullptr)
+      if (tripCountl1 == nullptr || tripCountl2 == nullptr || tripCountl1->getSCEVType()==scCouldNotCompute || tripCountl2->getSCEVType()==scCouldNotCompute )
       {
         return false;
       }
-      if (tripCountl1->getSCEVType()==scCouldNotCompute || tripCountl2->getSCEVType()==scCouldNotCompute)
-      {
-        return false;
-      }
-      auto value = se.computeConstantDifference(tripCountl1, tripCountl2);
-      if (value.has_value() && value.value().isZero())
+
+      auto diff = se.computeConstantDifference(tripCountl1, tripCountl2);
+      if (diff.has_value() && diff.value().isZero())
       {
         return true;
       }
 
       return false;
-      
-      se.getBackedgeTakenCount(l1)->print(outs());
-      outs() << "\n";
-      se.getBackedgeTakenCount(l2)->print(outs());
-      //return se.getBackedgeTakenCount(l1) == se.getBackedgeTakenCount(l2);
     }
 
     llvm::BasicBlock* getLoopEntryBB(llvm::Loop* l)
@@ -100,6 +92,12 @@ namespace
       return false;
     }
 
+    /* The check by requirements is weak, there can be cases where
+     * the two loops are adjacent but there are instructions in the middle, 
+     * eg: if both are not guarded check if outBB == loop2Preheader it is 
+     * it is not sufficient to guarantee that there aren't any instructions 
+     * between the two loops since we can have them in loop2 preheader 
+     */
     /* To be executed on 2 simple loops with one nesting level */
     bool areLoopsAdjacent(llvm::Loop* l1, llvm::Loop* l2)
     {
