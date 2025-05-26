@@ -21,7 +21,7 @@ namespace
       auto &dt = fam.getResult<DominatorTreeAnalysis>(f);
       auto &pdt = fam.getResult<PostDominatorTreeAnalysis>(f);
       auto &se = fam.getResult<ScalarEvolutionAnalysis>(f);
-      auto &da = fam.getResult<DependenceAnalysis>(f);
+      auto &di = fam.getResult<DependenceAnalysis>(f);
       std::vector<llvm::Loop*> loopsVec;
       
       if(!li.empty()) // At least one loop exists
@@ -50,8 +50,38 @@ namespace
         outs() << "\nCONTROLFLOWEQ: " << areControlFlowEquivalent(loopsVec[i], loopsVec[i+1], dt, pdt);
         bool tripCount = tripCountEquivalent(se, loopsVec[i], loopsVec[i+1]);
         outs() << "\nTRIPCOUNTEQUIVALENT: " << tripCount << "\n";
+        bool depFree = dependencesAllowFusion(loopsVec[i], loopsVec[i+1], di);
+        outs() << "\nISDEPFREE: " << depFree << "\n\n";
       }
       return PreservedAnalyses::all();
+    }
+
+    bool dependencesAllowFusion(llvm::Loop* l1, llvm::Loop* l2, llvm::DependenceInfo &di)
+    {
+      for(auto *bbL2: l2->getBlocks())
+      {
+        for(auto &instrL2: *bbL2)
+        {
+          if(instrL2.mayReadOrWriteMemory())
+          {
+            for(auto *bbL1: l1->getBlocks())
+            {
+              for(auto &instrL1: *bbL1)
+              {
+                if(instrL1.mayReadOrWriteMemory())
+                {
+                  if(di.depends(&instrL2, &instrL1, true))
+                  {
+                    return false;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      return true;
     }
 
     bool tripCountEquivalent(llvm::ScalarEvolution &se, llvm::Loop *l1, llvm::Loop *l2)
@@ -63,6 +93,9 @@ namespace
       {
         return false;
       }
+
+      if(tripCountl1 == tripCountl2)
+        return true;
 
       auto diff = se.computeConstantDifference(tripCountl1, tripCountl2);
       if (diff.has_value() && diff.value().isZero())
