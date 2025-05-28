@@ -149,10 +149,15 @@ namespace
       return true;
     }
 
+    // da riguardare per n letto da console
     bool tripCountEquivalent(ScalarEvolution &se, Loop *l1, Loop *l2)
     {
-      auto tripCountl1 = se.getBackedgeTakenCount(l1);
-      auto tripCountl2 = se.getBackedgeTakenCount(l2);
+      auto *tripCountl1 = se.getBackedgeTakenCount(l1);
+      auto *tripCountl2 = se.getBackedgeTakenCount(l2);
+
+      outs() << "***TRIP COUNT ANALYSIS***\n";
+      outs() << *tripCountl1 << "\n";
+      outs() << *tripCountl2 << "\n";
 
       if (tripCountl1 == nullptr || tripCountl2 == nullptr || tripCountl1->getSCEVType()==scCouldNotCompute || tripCountl2->getSCEVType()==scCouldNotCompute )
       {
@@ -163,6 +168,8 @@ namespace
         return true;
 
       auto diff = se.computeConstantDifference(tripCountl1, tripCountl2);
+      if(diff.has_value())
+        outs() << "DIFF VALUE: " << diff << "\n\n";
       if (diff.has_value() && diff.value().isZero())
       {
         return true;

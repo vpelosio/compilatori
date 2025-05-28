@@ -38,12 +38,8 @@ void same_known_loop_count(int a, int b)
     }
 }
 
-void different_loop_count(int a, int b)
+void different_loop_count(int a, int b, int n, int m)
 {
-    int n, m;
-    scanf("%d", &n);
-    scanf("%d", &m);
-
     int count = 0;
     int sum = 0;
     int prod = 1;
