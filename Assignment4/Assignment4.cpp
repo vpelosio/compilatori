@@ -14,8 +14,7 @@ using namespace llvm;
 
 namespace
 {
-  /// Rewrite all additive recurrences in a SCEV to use a new loop.
-  class AddRecLoopReplacer : public SCEVRewriteVisitor<AddRecLoopReplacer> {
+   class AddRecLoopReplacer : public SCEVRewriteVisitor<AddRecLoopReplacer> {
   public:
     AddRecLoopReplacer(ScalarEvolution &SE, const Loop &OldL, const Loop &NewL,
                        bool UseMax = true)
@@ -50,6 +49,7 @@ namespace
     bool Valid, UseMax;
     const Loop &OldL, &NewL;
   };
+
   struct LoopFusion : PassInfoMixin<LoopFusion>
   {
     PreservedAnalyses run(Function &f, FunctionAnalysisManager &fam)
@@ -87,59 +87,78 @@ namespace
         outs() << "\nCONTROLFLOWEQ: " << areControlFlowEquivalent(loopsVec[i], loopsVec[i+1], dt, pdt);
         bool tripCount = tripCountEquivalent(se, loopsVec[i], loopsVec[i+1]);
         outs() << "\nTRIPCOUNTEQUIVALENT: " << tripCount << "\n";
-        bool depFree = dependencesAllowFusion(loopsVec[i], loopsVec[i+1], di, se);
-        outs() << "\nISDEPFREE: " << depFree << "\n\n";
+        bool depAllowFusion = dependencesAllowFusion(loopsVec[i], loopsVec[i+1], di, se, dt);
+        outs() << "\n DEP ALLOW FUSION: " << depAllowFusion << "\n\n";
       }
       return PreservedAnalyses::all();
     }
-    
-    bool accessDiffIsPositive(Loop *l1, Loop *l2, Instruction *instr1, Instruction *instr2, ScalarEvolution &se) {
-    Value *ptr1 = getLoadStorePointerOperand(instr1);
-    Value *ptr2 = getLoadStorePointerOperand(instr2);
-    outs() << "******************DEBUG INFO************\n";
-    outs() << *ptr1 << "\n";
-    outs() << *ptr2 << "\n";
-    if (!ptr1 || !ptr2)
-      return false;
- 
-    const SCEV *SCEVPtr1 = se.getSCEVAtScope(ptr1, l1);
-    const SCEV *SCEVPtr2 = se.getSCEVAtScope(ptr2, l2);
 
-    AddRecLoopReplacer Rewriter(se, *l1, *l2);
-    SCEVPtr1 = Rewriter.visit(SCEVPtr1);
-
-    outs() << *SCEVPtr1 << "\n";
-    outs() << *SCEVPtr2 << "\n";
-    outs() << "\n\n";
-
- 
-    ICmpInst::Predicate Pred = ICmpInst::ICMP_SGE;
-    bool IsAlwaysGE = se.isKnownPredicate(Pred, SCEVPtr1, SCEVPtr2);
-    outs() << "IsAlwaysGE=" << IsAlwaysGE << "\n";
-
-    return IsAlwaysGE;
-  }
-
-    bool dependencesAllowFusion(Loop* l1, Loop* l2, DependenceInfo &di, ScalarEvolution &se)
+    bool accessDiffIsPositive(const Loop &L0, const Loop &L1, Instruction &I0,
+                              Instruction &I1, bool EqualIsInvalid, DominatorTreeAnalysis::Result &DT, ScalarEvolution &SE)
     {
-      for(auto *bbL1: l1->getBlocks())
+      Value *Ptr0 = getLoadStorePointerOperand(&I0);
+      Value *Ptr1 = getLoadStorePointerOperand(&I1);
+      if (!Ptr0 || !Ptr1)
+        return false;
+
+      const SCEV *SCEVPtr0 = SE.getSCEVAtScope(Ptr0, &L0);
+      const SCEV *SCEVPtr1 = SE.getSCEVAtScope(Ptr1, &L1);
+        outs() << "    Access function check: " << *SCEVPtr0 << " vs "
+                          << *SCEVPtr1 << "\n";
+      AddRecLoopReplacer Rewriter(SE, L0, L1);
+      SCEVPtr0 = Rewriter.visit(SCEVPtr0);
+      outs() << "    Access function after rewrite: " << *SCEVPtr0
+                          << " [Valid: " << Rewriter.wasValidSCEV() << "]\n";
+
+      outs() << " Access function ptr 2 " << *SCEVPtr1 << "\n";
+      if (!Rewriter.wasValidSCEV())
+        return false;
+
+      // TODO: isKnownPredicate doesnt work well when one SCEV is loop carried (by
+      //       L0) and the other is not. We could check if it is monotone and test
+      //       the beginning and end value instead.
+
+      BasicBlock *L0Header = L0.getHeader();
+      auto HasNonLinearDominanceRelation = [&](const SCEV *S)
       {
-        for(auto &instrL1: *bbL1)
+        const SCEVAddRecExpr *AddRec = dyn_cast<SCEVAddRecExpr>(S);
+        if (!AddRec)
+          return false;
+        return !DT.dominates(L0Header, AddRec->getLoop()->getHeader()) &&
+               !DT.dominates(AddRec->getLoop()->getHeader(), L0Header);
+      };
+      if (SCEVExprContains(SCEVPtr1, HasNonLinearDominanceRelation))
+        return false;
+
+      ICmpInst::Predicate Pred =
+          EqualIsInvalid ? ICmpInst::ICMP_SGT : ICmpInst::ICMP_SGE;
+      bool IsAlwaysGE = SE.isKnownPredicate(Pred, SCEVPtr0, SCEVPtr1);
+      outs() << "    Relation: " << *SCEVPtr0
+                          << (IsAlwaysGE ? "  >=  " : "  may <  ") << *SCEVPtr1
+                          << "\n";
+      return IsAlwaysGE;
+    }
+
+    bool dependencesAllowFusion(Loop *l1, Loop *l2, DependenceInfo &di, ScalarEvolution &se, DominatorTreeAnalysis::Result &dt)
+    {
+      for (auto *bbL1 : l1->getBlocks())
+      {
+        for (auto &instrL1 : *bbL1)
         {
-          if(instrL1.mayReadOrWriteMemory())
+          if (!instrL1.mayReadOrWriteMemory())
+            continue; // Skip instruction that are different from load and store
+
+          for (auto *bbL2 : l2->getBlocks())
           {
-            for(auto *bbL2: l2->getBlocks())
+            for (auto &instrL2 : *bbL2)
             {
-              for(auto &instrL2: *bbL2)
+              if (!instrL2.mayReadOrWriteMemory())
+                continue; // Skip instruction that are different from load and store
+
+              if (di.depends(&instrL1, &instrL2, true))
               {
-                if(instrL2.mayReadOrWriteMemory())
-                {
-                  if(di.depends(&instrL1, &instrL2, true))
-                  {
-                    if(!accessDiffIsPositive(l1, l2, &instrL1, &instrL2, se))
-                      return false;
-                  }
-                }
+                bool isPositive = accessDiffIsPositive(*l1, *l2, instrL1, instrL2, false, dt, se);
+                outs() << "IS POSITIVE? " << isPositive << "\n";
               }
             }
           }
@@ -149,7 +168,6 @@ namespace
       return true;
     }
 
-    // da riguardare per n letto da console
     bool tripCountEquivalent(ScalarEvolution &se, Loop *l1, Loop *l2)
     {
       auto *tripCountl1 = se.getBackedgeTakenCount(l1);
