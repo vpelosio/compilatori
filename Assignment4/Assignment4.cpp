@@ -64,20 +64,20 @@ namespace
       {
         errs() << "\nError, loops are not multiple of 2\n";
       }
-      outs() << "***FUNCTION " << f.getName() << "***\n";
+      outs() << "\n***FUNCTION " << f.getName() << "***\n";
       
       reverse(loopsVec.begin(), loopsVec.end());
       for(int i=0;i<loopsVec.size();i+=2)
       {
-        outs() << "CHECKING ";
+        outs() << "CHECKING\n";
         outs() << *loopsVec[i];
-        outs() << " AND ";
+        outs() << "AND\n";
         outs() << *loopsVec[i+1];
         outs() << "\n";
 
         if (!loopsVec[i]->isLoopSimplifyForm() || !loopsVec[i+1]->isLoopSimplifyForm())
         {
-            errs() << "One of the loop is note simplified\n";
+            errs() << "One of the loop is not simplified\n";
             continue;
         }
         errs() << "Passed loop simplify check\n";
@@ -127,13 +127,14 @@ namespace
 
     bool fuseLoops(Loop *l1, Loop *l2, LoopInfo &li, DominatorTree &dt, ScalarEvolution &se, DependenceInfo &di)
     {
-      if(l1->isGuarded() && l2->isGuarded())
+      /*if(l1->isGuarded() && l2->isGuarded())
       {
          // exit of l1 guard will point to the exit bb of l2 guard
          auto *l1GuardBB = getLoopEntryBB(l1);
          auto *brInstr = dyn_cast<BranchInstr>(l1GuardBB->getTerminator());
          auto *l1ExitBB = l1->getSuccessor(0);
-      }
+      }*/
+      return false;
     }
 
     bool getLoopInductionInfo(Loop *loop, ScalarEvolution &se, InductionInfo &inductionInfo)
@@ -329,6 +330,11 @@ namespace
           return false;
 
         auto *guardBranchL2 = l2->getLoopGuardBranch();
+
+        if(guardBranchL2->getOpcode() != Instruction::Br)
+        {
+          return false;
+        }
         
         if(!guardBranchL2)
           return false;
@@ -342,6 +348,12 @@ namespace
 
         if(!l1Exit || !l2Preheader)
           return false;
+
+        if(l2Preheader->size() != 1 || l2Preheader->front().getOpcode() != Instruction::Br)
+        {
+          // Preheader must contain only one instruction which is a br
+          return false;
+        }
 
         return l1Exit == l2Preheader;
       }
