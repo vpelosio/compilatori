@@ -14,12 +14,11 @@ using namespace llvm;
 
 namespace
 {
-   class AddRecLoopReplacer : public SCEVRewriteVisitor<AddRecLoopReplacer> {
+  /* Implementation inspired by  https://llvm.org/doxygen/LoopFuse_8cpp_source.html */
+  class AddRecLoopReplacer : public SCEVRewriteVisitor<AddRecLoopReplacer> {
   public:
-    AddRecLoopReplacer(ScalarEvolution &SE, const Loop &OldL, const Loop &NewL,
-                       bool UseMax = true)
-        : SCEVRewriteVisitor(SE), Valid(true), UseMax(UseMax), OldL(OldL),
-          NewL(NewL) {}
+    AddRecLoopReplacer(ScalarEvolution &SE, const Loop &OldL, const Loop &NewL)
+        : SCEVRewriteVisitor(SE), OldL(OldL), NewL(NewL) {}
  
     const SCEV *visitAddRecExpr(const SCEVAddRecExpr *Expr) {
       const Loop *ExprL = Expr->getLoop();
@@ -28,26 +27,18 @@ namespace
         append_range(Operands, Expr->operands());
         return SE.getAddRecExpr(Operands, &NewL, Expr->getNoWrapFlags());
       }
- 
-      if (OldL.contains(ExprL)) {
-        bool Pos = SE.isKnownPositive(Expr->getStepRecurrence(SE));
-        if (!UseMax || !Pos || !Expr->isAffine()) {
-          Valid = false;
-          return Expr;
-        }
-        return visit(Expr->getStart());
-      }
- 
-      for (const SCEV *Op : Expr->operands())
-        Operands.push_back(visit(Op));
-      return SE.getAddRecExpr(Operands, ExprL, Expr->getNoWrapFlags());
+      return nullptr;
     }
  
-    bool wasValidSCEV() const { return Valid; }
- 
   private:
-    bool Valid, UseMax;
     const Loop &OldL, &NewL;
+  };
+
+  struct InductionInfo
+  {
+    PHINode *phiNode;
+    const SCEV *startValue; 
+    const SCEV *stepValue;  
   };
 
   struct LoopFusion : PassInfoMixin<LoopFusion>
@@ -73,28 +64,137 @@ namespace
       {
         errs() << "\nError, loops are not multiple of 2\n";
       }
-      outs() << "\nIn function " << f.getName() << "\n";
+      outs() << "***FUNCTION " << f.getName() << "***\n";
       
       reverse(loopsVec.begin(), loopsVec.end());
       for(int i=0;i<loopsVec.size();i+=2)
       {
-        outs() << "\n\nCHECKING\n";
+        outs() << "CHECKING ";
         outs() << *loopsVec[i];
-        outs() << "AND\n";
+        outs() << " AND ";
         outs() << *loopsVec[i+1];
-        bool res = areLoopsAdjacent(loopsVec[i], loopsVec[i+1]);
-        outs() << "\nADJACENT: " << res << "\n\n";
-        outs() << "\nCONTROLFLOWEQ: " << areControlFlowEquivalent(loopsVec[i], loopsVec[i+1], dt, pdt);
-        bool tripCount = tripCountEquivalent(se, loopsVec[i], loopsVec[i+1]);
-        outs() << "\nTRIPCOUNTEQUIVALENT: " << tripCount << "\n";
-        bool depAllowFusion = dependencesAllowFusion(loopsVec[i], loopsVec[i+1], di, se, dt);
-        outs() << "\n DEP ALLOW FUSION: " << depAllowFusion << "\n\n";
+        outs() << "\n";
+
+        if (!loopsVec[i]->isLoopSimplifyForm() || !loopsVec[i+1]->isLoopSimplifyForm())
+        {
+            errs() << "One of the loop is note simplified\n";
+            continue;
+        }
+        errs() << "Passed loop simplify check\n";
+
+        if(!areLoopsAdjacent(loopsVec[i], loopsVec[i+1]))
+        {
+          outs() << "Loops adjacency check NOT PASSED\n";
+          continue;
+        }
+        outs() << "Loops adjacency check PASSED\n";
+
+
+        if(!areControlFlowEquivalent(loopsVec[i], loopsVec[i+1], dt, pdt))
+        {
+          outs() << "Control flow equivalent check NOT PASSED\n";
+          continue;
+        }
+        outs() << "Control flow equivalent check PASSED\n";
+
+        if(!tripCountEquivalent(se, loopsVec[i], loopsVec[i+1]))
+        {
+          outs() << "Trip count equivalent check NOT PASSED\n";
+          continue;
+        }
+        outs() << "Trip count equivalent check PASSED\n";
+
+        if(!dependencesAllowFusion(loopsVec[i], loopsVec[i+1], di, se, dt))
+        {
+          outs() << "Dependency check NOT PASSED\n";
+          continue;
+        }
+        outs() << "Dependency check PASSED\n";
+
+        outs() << "ALL CHECKS PASSED\n";
+
+        if (!fuseLoops(loopsVec[i], loopsVec[i+1], li, dt, se, di))
+        {
+          outs() << "ERROR DURING LOOP FUSION, SKIPPING...\n";
+          continue;
+        }
+        outs() << "***LOOP FUSION COMPLETED***\n";
+        
+        outs() << "\n\n";
       }
       return PreservedAnalyses::all();
     }
 
-    bool accessDiffIsPositive(const Loop &L0, const Loop &L1, Instruction &I0,
-                              Instruction &I1, bool EqualIsInvalid, DominatorTreeAnalysis::Result &DT, ScalarEvolution &SE)
+    bool fuseLoops(Loop *l1, Loop *l2, LoopInfo &li, DominatorTree &dt, ScalarEvolution &se, DependenceInfo &di)
+    {
+      // TODO
+    }
+
+    bool getLoopInductionInfo(Loop *loop, ScalarEvolution &se, InductionInfo &inductionInfo)
+    {
+      auto *inductionVar = loop->getInductionVariable(se);
+      if (!inductionVar)
+        return false;
+
+      inductionInfo.phiNode = inductionVar;
+
+      auto *phiNodeSCEV = se.getSCEV(inductionVar);
+
+      if (auto *AddRec = dyn_cast<SCEVAddRecExpr>(phiNodeSCEV))
+      {
+        inductionInfo.startValue = AddRec->getStart();
+        inductionInfo.stepValue = AddRec->getStepRecurrence(se);
+        return true;
+      }
+
+      return false;
+    }
+
+    /**
+     * for (int i = 0; i < 10; i++) 
+     * {
+     *  // Loop 1 body 
+     * }
+     * for (int j = 10; j < 30; j += 2) 
+     * {
+     *  // Loop 2 body
+     * }
+     *
+     * newJ = startL2 + (stepL2 / stepL1) * (i - startL1)
+     * newJ = 10 + (2 / 1) * (i - 0) = 10 + 2i
+     */
+    Value *transformLoopIndVar(IRBuilder<> &builder, Value *i, const SCEVConstant *start1, const SCEVConstant *step1, const SCEVConstant *start2, const SCEVConstant *step2)
+    {
+      const APInt &start1Val = start1->getAPInt();
+      const APInt &step1Val = step1->getAPInt();
+      const APInt &start2Val = start2->getAPInt();
+      const APInt &step2Val = step2->getAPInt();
+
+      uint64_t ratio = (step2Val.getZExtValue() / step1Val.getZExtValue());
+
+      Value *Offset = builder.getInt64(start2Val.getZExtValue());
+      Value *Start1 = builder.getInt64(start1Val.getZExtValue());
+      Value *Ratio = builder.getInt64(ratio);
+
+      // Ensure the input induction variable 'i' is also 64-bit for consistent arithmetic.
+      // This is done to avoid potential issues with mixed bit-width arithmetic.
+      Value *i64 = i;
+      if (i->getType()->isIntegerTy())
+      {
+        unsigned bitw = cast<IntegerType>(i->getType())->getBitWidth();
+        if (bitw < 64)
+          i64 = builder.CreateZExt(i, builder.getInt64Ty(), "i.cast");
+      }
+
+      Value *diff = builder.CreateSub(i64, Start1, "diff");
+      Value *scaled = builder.CreateMul(Ratio, diff, "scaled");
+      Value *newJ = builder.CreateAdd(Offset, scaled, "newJ");
+
+      return builder.CreateTrunc(newJ, builder.getInt32Ty(), "newJ.i32");
+    }
+
+    /* Implementation inspired by  https://llvm.org/doxygen/LoopFuse_8cpp_source.html */
+    bool accessDiffIsPositive(const Loop &L0, const Loop &L1, Instruction &I0, Instruction &I1, ScalarEvolution &SE)
     {
       Value *Ptr0 = getLoadStorePointerOperand(&I0);
       Value *Ptr1 = getLoadStorePointerOperand(&I1);
@@ -103,39 +203,13 @@ namespace
 
       const SCEV *SCEVPtr0 = SE.getSCEVAtScope(Ptr0, &L0);
       const SCEV *SCEVPtr1 = SE.getSCEVAtScope(Ptr1, &L1);
-        outs() << "    Access function check: " << *SCEVPtr0 << " vs "
-                          << *SCEVPtr1 << "\n";
+
       AddRecLoopReplacer Rewriter(SE, L0, L1);
       SCEVPtr0 = Rewriter.visit(SCEVPtr0);
-      outs() << "    Access function after rewrite: " << *SCEVPtr0
-                          << " [Valid: " << Rewriter.wasValidSCEV() << "]\n";
-
-      outs() << " Access function ptr 2 " << *SCEVPtr1 << "\n";
-      if (!Rewriter.wasValidSCEV())
+      if(!SCEVPtr0)
         return false;
 
-      // TODO: isKnownPredicate doesnt work well when one SCEV is loop carried (by
-      //       L0) and the other is not. We could check if it is monotone and test
-      //       the beginning and end value instead.
-
-      BasicBlock *L0Header = L0.getHeader();
-      auto HasNonLinearDominanceRelation = [&](const SCEV *S)
-      {
-        const SCEVAddRecExpr *AddRec = dyn_cast<SCEVAddRecExpr>(S);
-        if (!AddRec)
-          return false;
-        return !DT.dominates(L0Header, AddRec->getLoop()->getHeader()) &&
-               !DT.dominates(AddRec->getLoop()->getHeader(), L0Header);
-      };
-      if (SCEVExprContains(SCEVPtr1, HasNonLinearDominanceRelation))
-        return false;
-
-      ICmpInst::Predicate Pred =
-          EqualIsInvalid ? ICmpInst::ICMP_SGT : ICmpInst::ICMP_SGE;
-      bool IsAlwaysGE = SE.isKnownPredicate(Pred, SCEVPtr0, SCEVPtr1);
-      outs() << "    Relation: " << *SCEVPtr0
-                          << (IsAlwaysGE ? "  >=  " : "  may <  ") << *SCEVPtr1
-                          << "\n";
+      bool IsAlwaysGE = SE.isKnownPredicate(ICmpInst::ICMP_SGE, SCEVPtr0, SCEVPtr1);
       return IsAlwaysGE;
     }
 
@@ -157,8 +231,8 @@ namespace
 
               if (di.depends(&instrL1, &instrL2, true))
               {
-                bool isPositive = accessDiffIsPositive(*l1, *l2, instrL1, instrL2, false, dt, se);
-                outs() << "IS POSITIVE? " << isPositive << "\n";
+                if(!accessDiffIsPositive(*l1, *l2, instrL1, instrL2, se))
+                  return false;
               }
             }
           }
@@ -173,10 +247,6 @@ namespace
       auto *tripCountl1 = se.getBackedgeTakenCount(l1);
       auto *tripCountl2 = se.getBackedgeTakenCount(l2);
 
-      outs() << "***TRIP COUNT ANALYSIS***\n";
-      outs() << *tripCountl1 << "\n";
-      outs() << *tripCountl2 << "\n";
-
       if (tripCountl1 == nullptr || tripCountl2 == nullptr || tripCountl1->getSCEVType()==scCouldNotCompute || tripCountl2->getSCEVType()==scCouldNotCompute )
       {
         return false;
@@ -186,8 +256,6 @@ namespace
         return true;
 
       auto diff = se.computeConstantDifference(tripCountl1, tripCountl2);
-      if(diff.has_value())
-        outs() << "DIFF VALUE: " << diff << "\n\n";
       if (diff.has_value() && diff.value().isZero())
       {
         return true;

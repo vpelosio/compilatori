@@ -22,19 +22,6 @@ void dep_instr_loop()
       B[j] = A[j-10]*3;
 }
 
-void dep_instr_loop2()
-{
-   int n = 20;
-   int A[20], B[20];
-
-   for(int i=0;i<10;i++)
-      A[i] = i*2;
-
-   for(int j=0;j<10;j++)
-      B[j] = A[j%5]*3;
-}
-
-
 void negative_dep_instr_loop()
 {
    int n = 20;
