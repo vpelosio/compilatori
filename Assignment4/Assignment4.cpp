@@ -127,7 +127,13 @@ namespace
 
     bool fuseLoops(Loop *l1, Loop *l2, LoopInfo &li, DominatorTree &dt, ScalarEvolution &se, DependenceInfo &di)
     {
-      // TODO
+      if(l1->isGuarded() && l2->isGuarded())
+      {
+         // exit of l1 guard will point to the exit bb of l2 guard
+         auto *l1GuardBB = getLoopEntryBB(l1);
+         auto *brInstr = dyn_cast<BranchInstr>(l1GuardBB->getTerminator());
+         auto *l1ExitBB = l1->getSuccessor(0);
+      }
     }
 
     bool getLoopInductionInfo(Loop *loop, ScalarEvolution &se, InductionInfo &inductionInfo)
@@ -194,22 +200,22 @@ namespace
     }
 
     /* Implementation inspired by  https://llvm.org/doxygen/LoopFuse_8cpp_source.html */
-    bool accessDiffIsPositive(const Loop &L0, const Loop &L1, Instruction &I0, Instruction &I1, ScalarEvolution &SE)
+    bool accessDiffIsPositive(const Loop &l1, const Loop &l2, Instruction &i1, Instruction &i2, ScalarEvolution &se)
     {
-      Value *Ptr0 = getLoadStorePointerOperand(&I0);
-      Value *Ptr1 = getLoadStorePointerOperand(&I1);
-      if (!Ptr0 || !Ptr1)
+      Value *ptr1 = getLoadStorePointerOperand(&i1);
+      Value *ptr2 = getLoadStorePointerOperand(&i2);
+      if (!ptr1 || !ptr2)
         return false;
 
-      const SCEV *SCEVPtr0 = SE.getSCEVAtScope(Ptr0, &L0);
-      const SCEV *SCEVPtr1 = SE.getSCEVAtScope(Ptr1, &L1);
+      auto *SCEVPtr1 = se.getSCEVAtScope(ptr1, &l1);
+      auto *SCEVPtr2 = se.getSCEVAtScope(ptr2, &l2);
 
-      AddRecLoopReplacer Rewriter(SE, L0, L1);
-      SCEVPtr0 = Rewriter.visit(SCEVPtr0);
-      if(!SCEVPtr0)
+      AddRecLoopReplacer Rewriter(se, l1, l2);
+      SCEVPtr1 = Rewriter.visit(SCEVPtr1);
+      if(!SCEVPtr1)
         return false;
 
-      bool IsAlwaysGE = SE.isKnownPredicate(ICmpInst::ICMP_SGE, SCEVPtr0, SCEVPtr1);
+      bool IsAlwaysGE = se.isKnownPredicate(ICmpInst::ICMP_SGE, SCEVPtr1, SCEVPtr2);
       return IsAlwaysGE;
     }
 
@@ -229,9 +235,9 @@ namespace
               if (!instrL2.mayReadOrWriteMemory())
                 continue; // Skip instruction that are different from load and store
 
-              if (di.depends(&instrL1, &instrL2, true))
+              if (auto dep = di.depends(&instrL1, &instrL2, true))
               {
-                if(!accessDiffIsPositive(*l1, *l2, instrL1, instrL2, se))
+                if(dep->isFlow() && !accessDiffIsPositive(*l1, *l2, instrL1, instrL2, se)) // isFlow to check if it is a Read after Write dependence
                   return false;
               }
             }
