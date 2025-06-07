@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-void same_known_loop_count(int a, int b)
+void known_loop_exec_time(int a, int b)
 {
     int count = 0;
     int sum = 0;
@@ -38,7 +38,7 @@ void same_known_loop_count(int a, int b)
     }
 }
 
-void different_loop_count(int a, int b, int n, int m)
+void unknown_loop_exec_time(int a, int b, int n, int m)
 {
     int count = 0;
     int sum = 0;

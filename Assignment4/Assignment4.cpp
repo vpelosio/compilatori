@@ -56,7 +56,6 @@ namespace
       {
         for(auto *loop: li)
         {
-          /* Normal form not checked otherwise I cannot test areControlFlowEquivalent */
           loopsVec.push_back(loop);
         }
       }
@@ -69,7 +68,7 @@ namespace
       reverse(loopsVec.begin(), loopsVec.end());
       for(int i=0;i<loopsVec.size();i+=2)
       {
-        outs() << "CHECKING\n";
+        outs() << "\nCHECKING\n";
         outs() << *loopsVec[i];
         outs() << "AND\n";
         outs() << *loopsVec[i+1];
@@ -120,7 +119,7 @@ namespace
         }
         outs() << "***LOOP FUSION COMPLETED***\n";
         
-        outs() << "\n\n";
+        outs() << "\n";
       }
       return PreservedAnalyses::all();
     }
@@ -279,6 +278,8 @@ namespace
       return l->getLoopPreheader();
     }
 
+    /* L1 dominates L2 if every path that goes into L2 must pass thru L1 */
+    /* L2 postdominates L1 if every path that goes thru L1 also goes thru L2 */
     bool areControlFlowEquivalent(Loop* l1, Loop* l2, DominatorTree &DT, PostDominatorTree &PDT)
     {
       auto *l1EntryBB = getLoopEntryBB(l1);
