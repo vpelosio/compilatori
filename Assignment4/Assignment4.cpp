@@ -34,13 +34,6 @@ namespace
     const Loop &OldL, &NewL;
   };
 
-  struct InductionInfo
-  {
-    PHINode *phiNode;
-    const SCEV *startValue; 
-    const SCEV *stepValue;  
-  };
-
   struct LoopFusion : PassInfoMixin<LoopFusion>
   {
     PreservedAnalyses run(Function &f, FunctionAnalysisManager &fam)
@@ -124,36 +117,146 @@ namespace
       return PreservedAnalyses::all();
     }
 
-    bool fuseLoops(Loop *l1, Loop *l2, LoopInfo &li, DominatorTree &dt, ScalarEvolution &se, DependenceInfo &di)
+    /* The block which have as successor the latch is the body tail */
+    BasicBlock *getBodyTail(Loop *l)
     {
-      /*if(l1->isGuarded() && l2->isGuarded())
+      auto *latch = l->getLoopLatch();
+      for (auto *bb : l->blocks())
       {
-         // exit of l1 guard will point to the exit bb of l2 guard
-         auto *l1GuardBB = getLoopEntryBB(l1);
-         auto *brInstr = dyn_cast<BranchInstr>(l1GuardBB->getTerminator());
-         auto *l1ExitBB = l1->getSuccessor(0);
-      }*/
-      return false;
+        for (auto *succ : successors(bb))
+        {
+          if (succ == latch)
+          {
+            return bb;
+          }
+        }
+      }
+      return nullptr;
     }
 
-    bool getLoopInductionInfo(Loop *loop, ScalarEvolution &se, InductionInfo &inductionInfo)
+    /* The successor of the header which is inside the loop is the first block of the body */
+    BasicBlock *getFirstBodyBlock(Loop *l)
     {
-      auto *inductionVar = loop->getInductionVariable(se);
-      if (!inductionVar)
-        return false;
-
-      inductionInfo.phiNode = inductionVar;
-
-      auto *phiNodeSCEV = se.getSCEV(inductionVar);
-
-      if (auto *AddRec = dyn_cast<SCEVAddRecExpr>(phiNodeSCEV))
+      auto *header = l->getHeader();
+      for (auto *succ : successors(header))
       {
-        inductionInfo.startValue = AddRec->getStart();
-        inductionInfo.stepValue = AddRec->getStepRecurrence(se);
-        return true;
+        if (l->contains(succ))
+          return succ;
+      }
+      return nullptr;
+    }
+
+
+    /* Reference https://groups.google.com/g/llvm-dev/c/YfQRheMqMkM/m/Abl1DIWcAQAJ */
+    /* getInductionVariable cannot be used since it requires and works only on rotated loops */
+    PHINode *findInductionPhi(Loop *L, ScalarEvolution &SE)
+    {
+      BasicBlock *Header = L->getHeader();
+      if (!Header)
+      {
+        return nullptr; // A loop must have a header.
       }
 
-      return false;
+      // Iterate through all PHI nodes in the loop header.
+      for (PHINode &PN : Header->phis())
+      {
+        // Get the SCEV (Scalar Evolution Expression) for the current PHI node.
+        const SCEV *S = SE.getSCEV(&PN);
+
+        // Check if the SCEV is an SCEVAddRecExpr within the current loop.
+        // An SCEVAddRecExpr represents a value that is updated in a recurrence
+        // pattern (e.g., A + B*i, which is characteristic of an induction variable).
+        if (const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(S))
+        {
+          // Check if this AddRec expression is "controlled" by (i.e., belongs to)
+          // the current loop. This ensures we're looking at an induction variable
+          // for 'L' specifically.
+          if (AR->getLoop() == L)
+          {
+            // We've found an induction variable. The PHI node 'PN' is it.
+            // You could further inspect AR to get the start value (AR->getStart())
+            // and the step value (AR->getStepRecurrence()), if needed.
+            return &PN;
+          }
+        }
+      }
+      return nullptr; // No suitable induction variable PHI found
+    }
+
+    bool fuseLoops(Loop *l1, Loop *l2, LoopInfo &li, DominatorTree &dt, ScalarEvolution &se, DependenceInfo &di)
+    {
+      if (l1->isGuarded() && l2->isGuarded())
+      {
+        // exit of l1 guard will point to the exit bb of l2 guard
+        auto *l1GuardBB = getLoopEntryBB(l1);
+        auto *brInstr = dyn_cast<BranchInst>(l1GuardBB->getTerminator());
+        auto *l2ExitBB = l2->getExitBlock();
+
+        for (unsigned i = 0; i < brInstr->getNumSuccessors(); ++i)
+        {
+          auto *succBB = brInstr->getSuccessor(i);
+          if (!l1->contains(succBB) && succBB != l1->getLoopPreheader())
+          {
+            brInstr->setSuccessor(i, l2ExitBB);
+            break;
+          }
+        }
+      }
+
+      auto phiLoopL1 = findInductionPhi(l1, se);
+      auto phiLoopL2 = findInductionPhi(l2, se);
+      if(!phiLoopL1 || !phiLoopL2) return false;
+
+      auto *addRecExprL1 = dyn_cast<SCEVAddRecExpr>(se.getSCEV(phiLoopL1));
+      auto *addRecExprL2 = dyn_cast<SCEVAddRecExpr>(se.getSCEV(phiLoopL2));
+      if(!addRecExprL1 || !addRecExprL2) return false;
+
+      auto *startL1 = dyn_cast<SCEVConstant>(addRecExprL1->getStart());
+      auto *stepL1 = dyn_cast<SCEVConstant>(addRecExprL1->getStepRecurrence(se));
+      auto *startL2 = dyn_cast<SCEVConstant>(addRecExprL2->getStart());
+      auto *stepL2 = dyn_cast<SCEVConstant>(addRecExprL2->getStepRecurrence(se));
+
+      if(!startL1 || !stepL1 || !startL2 || !stepL2) return false;
+
+
+      IRBuilder<> builder(&*l1->getHeader()->getFirstInsertionPt());
+      auto *newIndVarL2 = transformLoopIndVar(builder, phiLoopL1, startL1, stepL1, startL2, stepL2);
+
+      phiLoopL2->replaceAllUsesWith(newIndVarL2);
+
+      auto *headerL1 = l1->getHeader();
+      auto *bodyTailL1 = getBodyTail(l1);
+      auto *latchL1 = l1->getLoopLatch();
+
+      auto *firstBodyBBL2 = getFirstBodyBlock(l2);
+      auto *bodyTailL2 = getBodyTail(l2);
+      auto *exitL2 = l2->getExitBlock();
+
+      if (!headerL1 || !bodyTailL1 || !latchL1 || !firstBodyBBL2 || !bodyTailL2 || !exitL2)
+      {
+        return false;
+      }
+
+      /* Connect the body of L1 to the body of L2*/
+      auto *brInstr = dyn_cast<BranchInst>(bodyTailL1->getTerminator());
+      brInstr->setSuccessor(0, firstBodyBBL2);
+
+      /* Connect the body tail of L2 to the latch of L1*/
+      BranchInst *brInstr2 = dyn_cast<BranchInst>(bodyTailL2->getTerminator());
+      brInstr2->setSuccessor(0, latchL1);
+
+      /* Connect the L1 header exit to the L2 exit */
+      BranchInst *brInstr3 = dyn_cast<BranchInst>(headerL1->getTerminator());
+      for (unsigned i = 0; i < brInstr3->getNumSuccessors(); ++i)
+      {
+        BasicBlock *Succ = brInstr3->getSuccessor(i);
+        if (!l1->contains(Succ))
+        {
+          brInstr3->setSuccessor(i, exitL2);
+          break;
+        }
+      }
+      return true;
     }
 
     /**
@@ -171,20 +274,20 @@ namespace
      */
     Value *transformLoopIndVar(IRBuilder<> &builder, Value *i, const SCEVConstant *start1, const SCEVConstant *step1, const SCEVConstant *start2, const SCEVConstant *step2)
     {
-      const APInt &start1Val = start1->getAPInt();
-      const APInt &step1Val = step1->getAPInt();
-      const APInt &start2Val = start2->getAPInt();
-      const APInt &step2Val = step2->getAPInt();
+      auto &start1Val = start1->getAPInt();
+      auto &step1Val = step1->getAPInt();
+      auto &start2Val = start2->getAPInt();
+      auto &step2Val = step2->getAPInt();
 
       uint64_t ratio = (step2Val.getZExtValue() / step1Val.getZExtValue());
 
-      Value *Offset = builder.getInt64(start2Val.getZExtValue());
-      Value *Start1 = builder.getInt64(start1Val.getZExtValue());
-      Value *Ratio = builder.getInt64(ratio);
+      auto *Offset = builder.getInt64(start2Val.getZExtValue());
+      auto *Start1 = builder.getInt64(start1Val.getZExtValue());
+      auto *Ratio = builder.getInt64(ratio);
 
       // Ensure the input induction variable 'i' is also 64-bit for consistent arithmetic.
       // This is done to avoid potential issues with mixed bit-width arithmetic.
-      Value *i64 = i;
+      auto *i64 = i;
       if (i->getType()->isIntegerTy())
       {
         unsigned bitw = cast<IntegerType>(i->getType())->getBitWidth();
@@ -192,11 +295,11 @@ namespace
           i64 = builder.CreateZExt(i, builder.getInt64Ty(), "i.cast");
       }
 
-      Value *diff = builder.CreateSub(i64, Start1, "diff");
-      Value *scaled = builder.CreateMul(Ratio, diff, "scaled");
-      Value *newJ = builder.CreateAdd(Offset, scaled, "newJ");
+      auto *diff = builder.CreateSub(i64, Start1, "diff");
+      auto *scaled = builder.CreateMul(Ratio, diff, "scaled");
+      auto *newIndVarL2 = builder.CreateAdd(Offset, scaled, "newIndVarL2");
 
-      return builder.CreateTrunc(newJ, builder.getInt32Ty(), "newJ.i32");
+      return builder.CreateTrunc(newIndVarL2, builder.getInt32Ty(), "newIndVarL2.i32");
     }
 
     /* Implementation inspired by  https://llvm.org/doxygen/LoopFuse_8cpp_source.html */
