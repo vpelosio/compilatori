@@ -1,75 +1,68 @@
-#include <stdio.h>
-#include <stdbool.h>
 
 void known_loop_exec_time(int a, int b)
 {
-    int count = 0;
-    int sum = 0;
-    int prod = 1;
     int n = 15;
     int m = 15;
+    int A[30];
 
     for (int i = 0; i < n*2; i++)
     {
-        count++;
+        A[i] = i*2;
     }
     for (int i = 0; i < n*2; i++)
     {
-        count++;
+        A[i] = i*2;
     }
 
     for (int i = 0; i < a; i++)
     {
-        sum += i;
+        A[i] = i*2;
     }
     for (int i = 0; i < a-1; i++)
     {
-        sum += i;
+        A[i] = i*2;
     }
 
-    for (size_t i = 0; i < n; i++)
+    for (int i = 0; i < n; i++)
     {
-        prod *= i;
+        A[i] = i*2;
     }
     
-    for (size_t i = 0; i < m; i++)
+    for (int i = 0; i < m; i++)
     {
-        prod *= i;
+        A[i] = i*2;
     }
 }
 
 void unknown_loop_exec_time(int a, int b, int n, int m)
 {
-    int count = 0;
-    int sum = 0;
-    int prod = 1;
-
+    int A[n*2], B[m];
 
     for (int i = 0; i < n*2; i++)
     {
-        count++;
+        A[i] = i*2;
     }
     for (int i = 0; i < n*2; i++)
     {
-        count++;
+        A[i] = i*2;
     }
 
     for (int i = 0; i < a; i++)
     {
-        sum += i;
+        A[i] = i*2;
     }
     for (int i = 0; i < a-1; i++)
     {
-        sum += i;
+        A[i] = i*2;
     }
 
-    for (size_t i = 0; i < n; i++)
+    for (int i = 0; i < n; i++)
     {
-        prod *= i;
+        A[i] = i*2;
     }
     
-    for (size_t i = 0; i < m; i++)
+    for (int i = 0; i < m; i++)
     {
-        prod *= i;
+        B[i] = i*2;
     }
 }
